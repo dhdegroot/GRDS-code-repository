@@ -1,3 +1,7 @@
+# User added
+*/results/
+*.xml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -123,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+python files general model/.DS_Store
+.DS_Store
+*.iml
