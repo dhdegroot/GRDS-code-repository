@@ -1,0 +1,2 @@
+# GRDS-code-repository
+ All code used for producing figures for the manuscript by Daan H. de Groot, Age J. Tjalma, Frank J. Bruggeman and Erik van Nimwegen on Growth Rate Dependent Stability.
