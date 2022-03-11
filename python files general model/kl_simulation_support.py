@@ -1,5 +1,6 @@
 """Several supporting functions for the KL simulation"""
 import numpy as np
+from scipy.integrate import solve_ivp
 
 
 def build_model(num_env=10, num_phen=10, mean_fit=0, std_fit=1, range_switch=(0.01, 1), k_mu_dep=0.1, seed=False):
@@ -102,6 +103,34 @@ def grow_reportlag(eig_vecs, eig_vals, c_scale, t, extinction=False):
     else:
         pass
     return x_t_norm, mu, extinction, lag
+
+
+def grow_ode(a_mat, x0, t_end, extinction=False):
+    """
+    calculate x(t)
+
+    """
+
+    def ode_fun(t, x):
+        return np.dot(a_mat, x)
+
+    t_span = (0, t_end)
+    t_eval = [t_end]
+    ode_sol = solve_ivp(ode_fun, t_span, x0, t_eval=t_eval, vectorized=True)
+    x_t = ode_sol.y[:, -1]
+    total = np.sum(x_t)
+
+    if total <= 10 ** -6:
+        extinction = True
+
+    mu = np.log(total) / t_end
+    x_t_norm = x_t/total
+    if (np.imag(mu) < 1e-10) and (np.max(np.abs(np.imag(x_t_norm))) < 1e-10):
+        mu = np.real(mu)
+        x_t_norm = np.real(x_t_norm)
+    else:
+        pass
+    return x_t_norm, mu, extinction
 
 
 def grow_reportpdf(eig_vecs, eig_vals, c_scale, t, extinction=False, timestep=0.1):

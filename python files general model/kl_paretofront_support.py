@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 
 # import warnings
 from kl_simulation_support import *
+from kl_simulation_support import grow_ode
 from scipy.stats import entropy
 
 
@@ -22,7 +23,7 @@ def exponential_mudep(mu, mumin, H0, beta, noiserange):
 
 
 def linear_mudep(mu, mumin, mumax, H0, noiserange):
-    return H0 + ((mumax-mu)/(mumax-mumin)) * noiserange * H0
+    return H0 + ((mumax - mu) / (mumax - mumin)) * noiserange * H0
 
 
 def switching_mat(mat_fit, num_env, num_phen, switch_rate=0.1, mu_dep=False, noiserange=4, beta=1, musens=0.5, mumax=2,
@@ -138,7 +139,8 @@ def kl_optimisation(fit_mat, x_0, num_env, num_phen, env_seqs, total_times, mean
 
 
 def kl_simulation(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_max, switch_rate=0.1, mu_dep=False,
-                  noiserange=4, beta=1, musens=0.5, mumax=2, dependency='sigmoid', sensing_cost=0, switch_matrices=None):
+                  noiserange=4, beta=1, musens=0.5, mumax=2, dependency='sigmoid', sensing_cost=0,
+                  switch_matrices=None):
     """
 
     :param total_times:
@@ -155,7 +157,117 @@ def kl_simulation(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_
     :return: deviation from maximal mean fitness as a fraction.
     """
     a_mat = switching_mat(fit_mat, num_env, num_phen, switch_rate=switch_rate, mu_dep=mu_dep, sensing_cost=sensing_cost,
-                          noiserange=noiserange, beta=beta, musens=musens, mumax=mumax, dependency=dependency, switch_matrices=switch_matrices)
+                          noiserange=noiserange, beta=beta, musens=musens, mumax=mumax, dependency=dependency,
+                          switch_matrices=switch_matrices)
+    # TODO: check how close eigenvalues are
+    eig_vals, eig_vecs = np.linalg.eig(a_mat)
+    m_inverse = np.linalg.inv(eig_vecs)
+    growthcosts = np.zeros(num_env)
+    for env in range(num_env):
+        try:
+            growthcosts[env] = (np.max(fit_mat[env]) - eig_vals[env].max())  # /fit_mat[env,env,env]
+        except:
+            max_eig_val = eig_vals[env].max()
+            if np.imag(max_eig_val) < 1e-10:
+                growthcosts[env] = (np.max(fit_mat[env]) - np.real(max_eig_val))  # /fit_mat[env,env,env]
+            else:
+                growthcosts[env] = (np.max(fit_mat[env]) - eig_vals[env].max())  # /fit_mat[env,env,env]
+
+    x_t_fracs = np.zeros((num_phen, len(env_seq[0]) + 1))  # initialise array to store phenotype fractions
+    x_t_fracs[:, 0] = x_0
+    mu = np.zeros(len(env_seq[0]))  # array to store mean and max growth rate after each environment
+    x_t_fracs2 = np.zeros((num_phen, len(env_seq[0]) + 1))  # initialise array to store phenotype fractions
+    x_t_fracs2[:, 0] = x_0
+
+    # Initialize array for storing results
+    results = np.zeros((4, len(env_seq[0])))
+    # solve system for specific sequence of environments
+    for ind_env, env in enumerate(env_seq[0]):
+        c_scale = np.dot(m_inverse[env], x_t_fracs[:, ind_env])
+        x_t_fracs[:, ind_env + 1], mu[ind_env], extinction, lag = grow_reportlag(eig_vecs[env],
+                                                                                 eig_vals[env],
+                                                                                 c_scale,
+                                                                                 env_seq[1][ind_env])
+        results[0, ind_env] = ind_env
+        results[1, ind_env] = lag
+        results[2, ind_env] = growthcosts[env]
+        results[3, ind_env] = (mu[ind_env] * lag) / np.log(2)
+        if extinction:
+            continue
+
+    mean_mu = sum(mu * env_seq[1]) / total_time
+    frac_max_mu = mean_mu / mean_mu_max
+    results_df = pd.DataFrame(data=np.transpose(results), columns=['envnumber', 'lag', 'growthcost', 'lag_gen'])
+    results_df['meanmu'] = mean_mu
+    results_df['frac_max_mu'] = frac_max_mu
+    return frac_max_mu, results_df
+
+
+def kl_simulation_ode(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_max, switch_rate=0.1, mu_dep=False,
+                      noiserange=4, beta=1, musens=0.5, mumax=2, dependency='sigmoid', sensing_cost=0,
+                      switch_matrices=None):
+    """
+
+    :param total_times:
+    :param mean_mu_max:
+    :param fit_mat:
+    :param x_0:
+    :param env_seq:
+    :param num_env:
+    :param num_phen:
+    :param switch_rate:
+    :param mu_dep:
+    :param noiserange:
+    :param beta:
+    :return: deviation from maximal mean fitness as a fraction.
+    """
+    a_mat = switching_mat(fit_mat, num_env, num_phen, switch_rate=switch_rate, mu_dep=mu_dep, sensing_cost=sensing_cost,
+                          noiserange=noiserange, beta=beta, musens=musens, mumax=mumax, dependency=dependency,
+                          switch_matrices=switch_matrices)
+
+    x_t_fracs = np.zeros((num_phen, len(env_seq[0]) + 1))  # initialise array to store phenotype fractions
+    x_t_fracs[:, 0] = x_0
+    mu = np.zeros(len(env_seq[0]))  # array to store mean and max growth rate after each environment
+
+    # Initialize array for storing results
+    results = np.zeros((1, len(env_seq[0])))
+    # solve system for specific sequence of environments
+    for ind_env, env in enumerate(env_seq[0]):
+        x_t_fracs[:, ind_env + 1], mu[ind_env], extinction = grow_ode(a_mat[env], x_t_fracs[:, ind_env], env_seq[1][ind_env])
+        results[0, ind_env] = ind_env
+        if extinction:
+            continue
+
+    mean_mu = sum(mu * env_seq[1]) / total_time
+    frac_max_mu = mean_mu / mean_mu_max
+    results_df = pd.DataFrame(data=np.transpose(results), columns=['envnumber'])
+    results_df['meanmu'] = mean_mu
+    results_df['frac_max_mu'] = frac_max_mu
+    return frac_max_mu, results_df
+
+
+def kl_simulation_IR(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_max,
+                     switch_rate=0.1, mu_dep=False,
+                     noiserange=4, beta=1, musens=0.5, mumax=2, dependency='sigmoid',
+                     sensing_cost=0, switch_matrices=None):
+    """
+
+    :param total_times:
+    :param mean_mu_max:
+    :param fit_mat:
+    :param x_0:
+    :param env_seq:
+    :param num_env:
+    :param num_phen:
+    :param switch_rate:
+    :param mu_dep:
+    :param noiserange:
+    :param beta:
+    :return: deviation from maximal mean fitness as a fraction.
+    """
+    a_mat = switching_mat(fit_mat, num_env, num_phen, switch_rate=switch_rate, mu_dep=mu_dep, sensing_cost=sensing_cost,
+                          noiserange=noiserange, beta=beta, musens=musens, mumax=mumax, dependency=dependency,
+                          switch_matrices=switch_matrices)
     # TODO: check how close eigenvalues are
     eig_vals, eig_vecs = np.linalg.eig(a_mat)
     m_inverse = np.linalg.inv(eig_vecs)
@@ -177,16 +289,23 @@ def kl_simulation(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_
     # Initialize array for storing results
     results = np.zeros((4, len(env_seq[0])))
     # solve system for specific sequence of environments
+    x_init = x_0
     for ind_env, env in enumerate(env_seq[0]):
-        c_scale = np.dot(m_inverse[env], x_t_fracs[:, ind_env])
+        c_scale = np.dot(m_inverse[env], x_init)
         x_t_fracs[:, ind_env + 1], mu[ind_env], extinction, lag = grow_reportlag(eig_vecs[env],
-                                                                                             eig_vals[env],
-                                                                                             c_scale,
-                                                                                             env_seq[1][ind_env])
+                                                                                 eig_vals[env],
+                                                                                 c_scale,
+                                                                                 env_seq[1][ind_env])
         results[0, ind_env] = ind_env
         results[1, ind_env] = lag
         results[2, ind_env] = growthcosts[env]
         results[3, ind_env] = (mu[ind_env] * lag) / np.log(2)
+
+        end_fracs = x_t_fracs[:, ind_env + 1]
+        opt_phen = np.argmax(np.diag(fit_mat[env]))
+        x_adapted = end_fracs[opt_phen]
+        x_init = np.ones(num_phen) * ((1 - x_adapted) / (num_phen - 1))
+        x_init[opt_phen] = x_adapted
         if extinction:
             continue
 
@@ -231,9 +350,57 @@ def kl_optimisation_new(fit_mat, x_0, num_env, num_phen, env_seq, total_time, me
     for ind_env, env in enumerate(env_seq[0]):
         c_scale = np.dot(m_inverse[env], x_t_fracs[:, ind_env])
         x_t_fracs[:, ind_env + 1], mu[ind_env], extinction = grow(eig_vecs[env], eig_vals[env], c_scale,
-                                                                      env_seq[1][ind_env])
+                                                                  env_seq[1][ind_env])
         if extinction:
             return 0
+
+    mean_mu = sum(mu * env_seq[1]) / total_time
+    frac_max_mu = mean_mu / mean_mu_max
+    return frac_max_mu
+
+
+def kl_optimisation_new_IR(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean_mu_max, switch_rate=0.1,
+                           mu_dep=False, dependency='sigmoid', mumin=0, sensing_cost=0,
+                           noiserange=4, beta=1, musens=0.5, mumax=2):
+    """
+
+    :param total_times:
+    :param mean_mu_max:
+    :param fit_mat:
+    :param x_0:
+    :param env_seq:
+    :param num_env:
+    :param num_phen:
+    :param switch_rate:
+    :param mu_dep:
+    :param noiserange:
+    :param beta:
+    :return: deviation from maximal mean fitness as a fraction.
+    """
+    a_mat = switching_mat(fit_mat, num_env, num_phen, switch_rate=switch_rate, mu_dep=mu_dep, dependency=dependency,
+                          noiserange=noiserange, beta=beta, musens=musens, mumax=mumax, mumin=mumin,
+                          sensing_cost=sensing_cost)
+    # TODO: check how close eigenvalues are
+    eig_vals, eig_vecs = np.linalg.eig(a_mat)
+    m_inverse = np.linalg.inv(eig_vecs)
+
+    x_t_fracs = np.zeros((num_phen, len(env_seq[0]) + 1))  # initialise array to store phenotype fractions
+    x_t_fracs[:, 0] = x_0
+    mu = np.zeros(len(env_seq[0]))  # array to store mean and max growth rate after each environment
+
+    # solve system for specific sequence of environments
+    x_init = x_0
+    for ind_env, env in enumerate(env_seq[0]):
+        c_scale = np.dot(m_inverse[env], x_init)
+        x_t_fracs[:, ind_env + 1], mu[ind_env], extinction = grow(eig_vecs[env], eig_vals[env], c_scale,
+                                                                  env_seq[1][ind_env])
+        if extinction:
+            return 0
+        end_fracs = x_t_fracs[:, ind_env + 1]
+        opt_phen = np.argmax(np.diag(fit_mat[env]))
+        x_adapted = end_fracs[opt_phen]
+        x_init = np.ones(num_phen) * ((1 - x_adapted) / (num_phen - 1))
+        x_init[opt_phen] = x_adapted
 
     mean_mu = sum(mu * env_seq[1]) / total_time
     frac_max_mu = mean_mu / mean_mu_max
@@ -352,7 +519,7 @@ def get_mu_trace(fit_mat, x_0, num_env, num_phen, env_seq, switch_rate=0.1, mu_d
 
 
 def get_logOD_oneenv(fit_mat, x_0, num_env, num_phen, env=0, switch_rate=0.1, mu_dep=False, dependency='sigmoid',
-               noiserange=4, beta=1, musens=0.5, mumax=2, times=np.linspace(0,20), sensing_cost=0):
+                     noiserange=4, beta=1, musens=0.5, mumax=2, times=np.linspace(0, 20), sensing_cost=0):
     """
     :param fit_mat:
     :param x_0:
@@ -409,7 +576,7 @@ def get_landscape_df(fit_mat, env_seq):
         env_df = pd.DataFrame(data=growthrates, columns=['growthrate'])
         env_df['environment'] = env_ind
         times_env = [env_seq[1][ind] for ind, env in enumerate(env_seq[0]) if env == env_ind]
-        occurrence = np.sum(times_env)/total_time
+        occurrence = np.sum(times_env) / total_time
         env_df['occurrence'] = occurrence
 
         landscape_df = landscape_df.append(env_df, sort=True)
@@ -465,7 +632,7 @@ def mullerplot_fig2(x_variable, y_variable, **kwargs):
 
 def plot_landscape_and_noiserelations(fit_mat, env_seq, res_const_x, res_lin_x, res_exp_x, res_sigm_x, mumax, mumin,
                                       store_figs_filename=False, kinds_to_show=['const', 'lin', 'exp', 'sigm']):
-    kind_colors = ['#abd9e9', '#d7191c', '#2c7bb6','#fdae61',]
+    kind_colors = ['#abd9e9', '#d7191c', '#2c7bb6', '#fdae61', ]
     num_phen = fit_mat[0].shape[0]
     num_env = fit_mat.shape[0]
     if num_phen == 2:
@@ -616,11 +783,11 @@ def plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_con
             musens = res[3]
 
         t_trace, mu_trace, frac_trace, logODtrace = get_mu_trace(fit_mat, x0, num_env, num_phen, env_seq,
-                                                                               switch_rate=switch_rate, mu_dep=mu_dep,
-                                                                               noiserange=noiserange, beta=beta,
-                                                                               sensing_cost=sensing_cost, musens=musens,
-                                                                               mumax=mumax,
-                                                                               mumin=mumin, dependency=dep)
+                                                                 switch_rate=switch_rate, mu_dep=mu_dep,
+                                                                 noiserange=noiserange, beta=beta,
+                                                                 sensing_cost=sensing_cost, musens=musens,
+                                                                 mumax=mumax,
+                                                                 mumin=mumin, dependency=dep)
 
         entropytrace = np.array([entropy(frac) for frac in frac_trace])
 
@@ -688,7 +855,7 @@ def plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_con
         else:
             phen_colors = sns.color_palette("cubehelix", num_phen)
             phen_colors.reverse()
-    g = sns.FacetGrid(frac_traces_df_filtered, col='switching type', legend_out=True,aspect=4)
+    g = sns.FacetGrid(frac_traces_df_filtered, col='switching type', legend_out=True, aspect=4)
     g = g.map_dataframe(mullerplot_fig2, 'dummy1', 'dummy2', new_colors=phen_colors, phen_names=colnames[1:],
                         env_seq=env_seq)
 
@@ -703,14 +870,16 @@ def plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_con
         plt.savefig(os.path.join(workingdir, "results", filename + '.svg'))
 
 
-def plot_single_simulation(fit_mat, env_seq, res_const_x, res_lin_x, res_exp_x, res_sigm_x, mumax, mumin, x0, num_env, num_phen,
+def plot_single_simulation(fit_mat, env_seq, res_const_x, res_lin_x, res_exp_x, res_sigm_x, mumax, mumin, x0, num_env,
+                           num_phen,
                            total_time, mean_mu_max, store_figs_filename=False, envs_to_show=3,
                            kinds_to_show=['const', 'lin', 'exp', 'sigm']):
     # Comment following line if you do not wat to store figures
     plot_landscape_and_noiserelations(fit_mat, env_seq, res_const_x, res_lin_x, res_exp_x, res_sigm_x, mumax, mumin,
                                       store_figs_filename=store_figs_filename, kinds_to_show=kinds_to_show)
 
-    plot_mu_distributions(fit_mat, x0, num_env, num_phen, env_seq, total_time, mean_mu_max, mumax, mumin, res_const_x=res_const_x, res_lin_x=res_lin_x,
+    plot_mu_distributions(fit_mat, x0, num_env, num_phen, env_seq, total_time, mean_mu_max, mumax, mumin,
+                          res_const_x=res_const_x, res_lin_x=res_lin_x,
                           res_exp_x=res_exp_x,
                           res_sigm_x=res_sigm_x, store_figs_filename=store_figs_filename,
                           kinds_to_show=kinds_to_show)
