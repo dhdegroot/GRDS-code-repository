@@ -1,6 +1,6 @@
 from itertools import product
 
-from kl_paretofront_support import *
+from kl_support import *
 from matplotlib import cm
 """
 In this script we will study the effect of growth rate dependent switching rates for many different parameter sets.

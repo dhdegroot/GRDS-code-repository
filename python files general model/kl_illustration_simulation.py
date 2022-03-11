@@ -1,7 +1,7 @@
 import os
 
 from scipy import optimize
-from kl_paretofront_support import *
+from kl_support import *
 
 """
 In this script we will create one fitness landscape and try to optimize the population growth rate. First, we will
