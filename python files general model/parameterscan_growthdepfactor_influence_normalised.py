@@ -1,6 +1,6 @@
 from itertools import product
 
-from kl_support import *
+from kl_paretofront_support import *
 from matplotlib import cm
 """
 In this script we will study the effect of growth rate dependent switching rates for many different parameter sets.
@@ -16,7 +16,7 @@ RANDOM_TIMES = True
 PLOT_DETAILS = True
 MANY_PARS = True
 SIM_TIME_FACTOR = 1
-READ_IN_DATA = False
+READ_IN_DATA = True
 kinds = ['lin']
 kinds_dict = {'const': 'constant', 'lin': 'linear', 'sensing': 'sensing'}
 custom_colors = cm.get_cmap('tab10')
@@ -223,7 +223,9 @@ simus_list = mean_df['simulation'].unique()
 adaptive_df = mean_df[mean_df['dependency'] == 'linear']
 no_advantage_simulations = []
 legends_to_be_set = list(mean_durations.copy())
+rand_zorders = -np.random.choice(100,n_simus)
 for simu_ind, simulation in enumerate(simus_list):
+    curr_zorder = rand_zorders[simu_ind]
     if simu_ind % 100 == 0:
         print("Plotting growth rate increase " + str(simu_ind) + " of " + str(n_simus))
     simu_df = adaptive_df[adaptive_df['simulation'] == simulation]
@@ -237,11 +239,11 @@ for simu_ind, simulation in enumerate(simus_list):
     # ind_env = [ind_env for ind_env, num_env in enumerate(num_envs) if abs(num_env - simu_df['num_env'].values[0]) < 1e-6][0]
     # ind_duration = [ind for ind, duration in enumerate(mean_durations) if abs(duration - simu_df['mean_duration'].values[0]) < 1e-5][0]
     if mean_duration_simu in legends_to_be_set:
-        axes.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=-1, alpha=.8,
+        axes.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=curr_zorder, alpha=.8,
                   label='T = ' + str(mean_duration_simu))
         legends_to_be_set.remove(mean_duration_simu)
     else:
-        axes.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=-1, alpha=.8)
+        axes.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=curr_zorder, alpha=.8)
 
 x_avg = growth_dep_factors
 y_avg = []
