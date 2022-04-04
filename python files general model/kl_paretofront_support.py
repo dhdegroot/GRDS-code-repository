@@ -233,7 +233,8 @@ def kl_simulation_ode(fit_mat, x_0, num_env, num_phen, env_seq, total_time, mean
     results = np.zeros((1, len(env_seq[0])))
     # solve system for specific sequence of environments
     for ind_env, env in enumerate(env_seq[0]):
-        x_t_fracs[:, ind_env + 1], mu[ind_env], extinction = grow_ode(a_mat[env], x_t_fracs[:, ind_env], env_seq[1][ind_env])
+        x_t_fracs[:, ind_env + 1], mu[ind_env], extinction = grow_ode(a_mat[env], x_t_fracs[:, ind_env],
+                                                                      env_seq[1][ind_env])
         results[0, ind_env] = ind_env
         if extinction:
             continue
@@ -511,10 +512,14 @@ def get_mu_trace(fit_mat, x_0, num_env, num_phen, env_seq, switch_rate=0.1, mu_d
         x_trace.extend(x_trace_env)
         logOD_trace.extend(logOD_trace_env + logOD_trace[-1])
 
-    t_trace = np.array(t_trace[1:])
-    mu_trace = np.array(mu_trace[1:])
-    x_trace = np.array(x_trace[1:])
-    logOD_trace = np.array(logOD_trace[1:])
+    # t_trace = np.array(t_trace[1:])
+    # mu_trace = np.array(mu_trace[1:])
+    # x_trace = np.array(x_trace[1:])
+    # logOD_trace = np.array(logOD_trace[1:])
+    t_trace = np.array(t_trace)
+    mu_trace = np.array(mu_trace)
+    x_trace = np.array(x_trace)
+    logOD_trace = np.array(logOD_trace)
     return t_trace, mu_trace, x_trace, logOD_trace
 
 
@@ -753,7 +758,7 @@ def plot_mu_distributions(fit_mat, x0, num_env, num_phen, env_seq, total_time, m
 
 def plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_const_x=[], res_lin_x=[], res_exp_x=[],
                   res_sigm_x=[], res_sensing_x=[], envs_to_show=10, kinds_to_show=['const', 'lin', 'exp', 'sigm'],
-                  store_figs_filename=False, sensing_cost=0, phen_colors=None):
+                  store_figs_filename=False, sensing_cost=0, phen_colors=None, avg_mus_dict=None):
     env_seq = (env_seq[0][:envs_to_show], env_seq[1][:envs_to_show])
     kind_colors = {'sensing': '#d7191c', 'lin': '#fdae61', 'const': '#abd9e9', 'exp': '#fdae61', 'sigm': '#abd9e9'}
 
@@ -814,6 +819,8 @@ def plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_con
     for switch_ind, switchtype in enumerate(kinds_to_show):
         ax.plot('time', 'mu', color=kind_colors[switchtype], lw=2,
                 data=traces_df_filtered[traces_df_filtered['switching type'] == switchtype], label=switchtype)
+        if avg_mus_dict is not None:
+            ax.plot(t_trace, np.ones(len(t_trace)) * avg_mus_dict[switchtype], '--', color=kind_colors[switchtype], lw=2)
 
     if store_figs_filename:
         workingdir = os.getcwd()
@@ -896,17 +903,21 @@ def plot_single_simulation(fit_mat, env_seq, res_const_x, res_lin_x, res_exp_x, 
 def plot_single_simulation_nolandscape(fit_mat, env_seq, mumax, mumin, x0, num_env, num_phen,
                                        total_time, mean_mu_max, res_const_x=[], res_lin_x=[], res_exp_x=[],
                                        res_sigm_x=[], res_sensing_x=[], store_figs_filename=False, envs_to_show=3,
-                                       kinds_to_show=['const', 'lin', 'exp', 'sigm'], sensing_cost=0, phen_colors=None):
-    plot_mu_distributions(fit_mat, x0, num_env, num_phen, env_seq, total_time, mean_mu_max, mumax, mumin,
-                          res_const_x=res_const_x, res_lin_x=res_lin_x, res_exp_x=res_exp_x, sensing_cost=sensing_cost,
-                          res_sigm_x=res_sigm_x, res_sensing_x=res_sensing_x, store_figs_filename=store_figs_filename,
-                          kinds_to_show=kinds_to_show)
+                                       kinds_to_show=['const', 'lin', 'exp', 'sigm'], sensing_cost=0, phen_colors=None,
+                                       plot_mu_dist=False, avg_mus_dict=None):
+    if plot_mu_dist:
+        plot_mu_distributions(fit_mat, x0, num_env, num_phen, env_seq, total_time, mean_mu_max, mumax, mumin,
+                              res_const_x=res_const_x, res_lin_x=res_lin_x, res_exp_x=res_exp_x,
+                              sensing_cost=sensing_cost,
+                              res_sigm_x=res_sigm_x, res_sensing_x=res_sensing_x,
+                              store_figs_filename=store_figs_filename,
+                              kinds_to_show=kinds_to_show)
 
     plot_mu_trace(fit_mat, x0, num_env, num_phen, env_seq, mumax, mumin, res_const_x=res_const_x, res_lin_x=res_lin_x,
                   res_exp_x=res_exp_x,
                   res_sigm_x=res_sigm_x, res_sensing_x=res_sensing_x, envs_to_show=envs_to_show,
                   kinds_to_show=kinds_to_show, phen_colors=phen_colors,
-                  store_figs_filename=store_figs_filename, sensing_cost=sensing_cost)
+                  store_figs_filename=store_figs_filename, sensing_cost=sensing_cost, avg_mus_dict=avg_mus_dict)
 
     plt.show()
     plt.close('all')

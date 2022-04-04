@@ -1,7 +1,7 @@
 import os
 
 from scipy import optimize
-from kl_support import *
+from kl_paretofront_support import *
 
 """
 In this script we will create one fitness landscape and try to optimize the population growth rate. First, we will
@@ -41,18 +41,28 @@ The procedure will be as follows
 """
 workingdir = os.getcwd()
 # Set parameter values for system
-num_env = 2
+num_env = 3
 num_phen = 3
 num_iter = 1
 avg_env_length = [10] * num_env  # must be a list of length num_env
-mu_max = 0.8
+mu_max = 1
 sp_sensing_cost = 0.03
-maxadaptationrate = 1
-upper_limit_bad = 0.05  # Bad growth rates are drawn from [0, upper_limit_bad)
-growth_dep_factor = 100
+maxadaptationrate = 100
+upper_limit_bad = 0  # Bad growth rates are drawn from [0, upper_limit_bad)
+growth_dep_factor = 10
 
 np.random.seed(1337)
-env_seq = ([0, 1], avg_env_length)
+# Make markov transition matrix
+# Or just all equal
+# trans_mat = np.ones((num_env, num_env))
+# np.fill_diagonal(trans_mat, 0)
+# trans_mat = trans_mat / np.tile(np.sum(trans_mat, axis=0), (num_env, 1))
+#
+# # Choose simulation time long enough to touch upon a reasonable set of environment transitions
+# min_sim_time = np.maximum(100 * np.mean(avg_env_length) * num_env ** 2, 400)
+# env_seq = generate_env_seq(trans_mat, min_sim_time, avg_env_length, seed=1337,
+#                            random_times=False)
+env_seq = ([0, 1], [10, 10])
 total_time = sum(env_seq[1])
 x0 = np.zeros(num_phen)
 x0[2] = 1
@@ -149,14 +159,15 @@ print('\nGrowth rate dependent switching (high-low): success = ' + str(res_lin.s
           '\nFor min switching rate = ' + str(res_min_switch_rate) +
           '\n For max switching rate = ' + str(res_max_switch_rate))
 
+avg_mus_dict = {'const': (1-res_const.fun) * mean_mu_max, 'lin': (1-res_lin.fun) * mean_mu_max}
 """Plot summary of fitness landscape"""
 # env_order = np.unique(landscape_df['occurrence'], return_index=True)[1]
 # order = landscape_df['environment'].values[env_order]
-sns.set(style='whitegrid')
-g0 = sns.catplot(x='growthrate', y='environment', kind='strip', hue='environment', data=landscape_df, legend=False,
-                 legend_out=False, orient='h', height=5, aspect=1.2)
-g0.set(ylabel='Environments in increasing occurrence', xlabel='Growth rates')
-plt.savefig(os.path.join(workingdir, "results", "fitness_landscape.png"))
+# sns.set(style='whitegrid')
+# g0 = sns.catplot(x='growthrate', y='environment', kind='strip', hue='environment', data=landscape_df, legend=False,
+#                  legend_out=False, orient='h', height=5, aspect=1.2)
+# g0.set(ylabel='Environments in increasing occurrence', xlabel='Growth rates')
+# plt.savefig(os.path.join(workingdir, "results", "fitness_landscape.png"))
 
 colors = []
 rgb_codes = [[182, 169, 219], [219, 176, 169], [169, 219, 195]]
@@ -168,7 +179,7 @@ plot_single_simulation_nolandscape(fit_mat, env_seq, mumax, mumin, x0,
                                    num_env, num_phen, total_time, mean_mu_max, res_const_x=res_const_x,
                                    res_lin_x=res_lin_x, res_sigm_x=[], res_exp_x=[],
                                    store_figs_filename='kl_illustration', sensing_cost=sensing_cost,
-                                   envs_to_show=5, phen_colors=colors, res_sensing_x=res_sensing_x,
-                                   kinds_to_show=['const', 'lin', 'sensing'])
+                                   envs_to_show=2, phen_colors=colors, res_sensing_x=res_sensing_x,
+                                   kinds_to_show=['const', 'lin'], avg_mus_dict=avg_mus_dict)
 
 plt.show()
