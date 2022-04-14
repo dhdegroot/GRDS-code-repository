@@ -223,7 +223,7 @@ simus_list = mean_df['simulation'].unique()
 adaptive_df = mean_df[mean_df['dependency'] == 'linear']
 no_advantage_simulations = []
 legends_to_be_set = list(mean_durations.copy())
-rand_zorders = -np.random.choice(100,n_simus)
+rand_zorders = -np.random.choice(100, n_simus)
 for simu_ind, simulation in enumerate(simus_list):
     curr_zorder = rand_zorders[simu_ind]
     if simu_ind % 100 == 0:
@@ -259,6 +259,49 @@ for legobj in leg.legendHandles:
     legobj.set_linewidth(2.0)
 plt.savefig(os.path.join(workingdir, "results", "growthdepfactor_influence_subtract_normalised.png"))
 plt.savefig(os.path.join(workingdir, "results", "growthdepfactor_influence_subtract_normalised.svg"))
+
+"""---------------Do the same with y on log-scale---------------------------"""
+
+simus_list = mean_df['simulation'].unique()
+figure, axes2 = plt.subplots(nrows=1, ncols=1)
+legends_to_be_set = list(mean_durations.copy())
+for simu_ind, simulation in enumerate(simus_list):
+    curr_zorder = rand_zorders[simu_ind]
+    if simu_ind % 100 == 0:
+        print("Plotting growth rate increase " + str(simu_ind) + " of " + str(n_simus))
+    simu_df = adaptive_df[adaptive_df['simulation'] == simulation]
+    mean_duration_simu = simu_df['mean_duration'].iloc[0]
+    mean_duration_ind = np.where(mean_durations == mean_duration_simu)[0][0]
+    base_growth = simu_df[simu_df['growth_dep_factor'] == 1.]['meanmu'].iloc[0]
+    x = simu_df['growth_dep_factor']
+    y = simu_df['meanmu'].values - base_growth
+    if y[-1] <= 0:
+        no_advantage_simulations.append(simulation)
+    # ind_env = [ind_env for ind_env, num_env in enumerate(num_envs) if abs(num_env - simu_df['num_env'].values[0]) < 1e-6][0]
+    # ind_duration = [ind for ind, duration in enumerate(mean_durations) if abs(duration - simu_df['mean_duration'].values[0]) < 1e-5][0]
+    if mean_duration_simu in legends_to_be_set:
+        axes2.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=curr_zorder, alpha=.8,
+                   label='T = ' + str(mean_duration_simu))
+        legends_to_be_set.remove(mean_duration_simu)
+    else:
+        axes2.plot(x, y, color=custom_colors(mean_duration_ind), lw=0.12, zorder=curr_zorder, alpha=.8)
+
+# x_avg = np.log10(growth_dep_factors)
+x_avg = growth_dep_factors
+y_avg = []
+base_growths = adaptive_df[adaptive_df['growth_dep_factor'] == 1.]['meanmu']
+for factor in growth_dep_factors:
+    y_avg.append(np.mean(np.log10(adaptive_df[abs(adaptive_df['growth_dep_factor'] - factor)<1e-10]['meanmu'].values / base_growths)))
+
+axes2.plot(x_avg, y_avg, color=blackish, lw=3, zorder=1, label="mean")
+axes2.set_xscale('log')
+axes2.set_xlabel('strength of GRDS: log10(r)')
+axes2.set_ylabel('G(GRDS) - G(no GRDS)')
+leg = axes2.legend()
+for legobj in leg.legendHandles:
+    legobj.set_linewidth(2.0)
+plt.savefig(os.path.join(workingdir, "results", "growthdepfactor_influence_normalised_log.png"))
+plt.savefig(os.path.join(workingdir, "results", "growthdepfactor_influence_normalised_log.svg"))
 
 print(*no_advantage_simulations, sep=',')
 plt.show()
