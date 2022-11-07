@@ -30,6 +30,11 @@ if MANY_PARS:
     spread_dom_mu_factors = np.linspace(0.05, 0.65, 5)
     deltas = np.linspace(0.05, .25, 5)
 
+    # num_envs = np.unique(np.floor(np.exp(np.linspace(np.log(4), np.log(20), 5))).astype(int))
+    # mu_maxs = np.linspace(0.9, 1.2, 1)
+    # spread_dom_mu_factors = np.linspace(0.05, 0.45, 5)
+    # deltas = np.linspace(0.05, .45, 5)
+
     n_reps = 20
     reps = np.arange(n_reps)
 
@@ -68,6 +73,7 @@ if not READ_IN_DATA:
         for ind_env in range(num_env):
             good_mu = good_mus[ind_env]
             bad_mus = np.random.uniform(0, good_mu * (1 - delta), num_phen)
+            # bad_mus = np.random.uniform(good_mu * (1 - delta), good_mu, num_phen)
             ind_good_phen = ind_env % num_phen
             np.fill_diagonal(fit_mat[ind_env], bad_mus)
             fit_mat[ind_env, ind_good_phen, ind_good_phen] = good_mu
@@ -76,6 +82,14 @@ if not READ_IN_DATA:
         trans_mat = np.random.rand(num_env, num_env)
         np.fill_diagonal(trans_mat, 0)
         trans_mat = trans_mat / np.tile(np.sum(trans_mat, axis=0), (num_env, 1))
+
+        # fit_mat = np.zeros((2, 2, 2))
+        # fit_mat[0, 0, 0] = 0.
+        # fit_mat[0, 1, 1] = -1.
+        # fit_mat[1, 0, 0] = 0.6
+        # fit_mat[1, 1, 1] = 0.8
+        # trans_mat = np.array([[0., 1], [1, 0]])
+        # num_env = 2
 
         # Get probabilities of environments as right eigenvector with eigenvalue 1
         eig_val_b, eig_vec_b = np.linalg.eig(trans_mat)
@@ -108,13 +122,15 @@ if not READ_IN_DATA:
              'delta': delta, 'simulation': simulation},
             ignore_index=True)
 
-fig, ax = plt.subplots()
+fig, ax = plt.subplots(figsize=(15, 6.5))
 im = ax.scatter(results_df['num_env'], results_df['pred_GRDS_benefit'],
                 c=results_df['spread_dom_mu_factor'] / results_df['delta'])
+# im = ax.scatter(results_df['num_env'], results_df['pred_GRDS_benefit'])
 ax.set_xlabel('Number of environments')
 ax.set_ylabel('Predicted GRDS benefit')
 ax.set_ylim(0)
 fig.colorbar(im, ax=ax, label='Spread dominant growth rates/Spectral gap')
+
 fig.savefig(os.path.join(workingdir, 'results', 'pred_GRDS_benefit.png'))
 
 plt.show()
